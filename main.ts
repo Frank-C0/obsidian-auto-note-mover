@@ -48,12 +48,16 @@ export default class AutoNoteMover extends Plugin {
 			const fileFullName = file.basename + '.' + file.extension;
 			const settingsLength = folderTagPattern.length;
 			const cacheTag = getAllTags(fileCache) || [];
-			const parseList = (value: string) => value.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
-			const parseFrontmatterList = (value: string) =>
+			const parseList = (value?: string) =>
+				(value || '')
+					.split(',')
+					.map((item) => item.trim())
+					.filter((item) => item.length > 0);
+			const parseFrontmatterList = (value?: string) =>
 				parseList(value)
 					.map((entry) => {
 						const [key, ...rest] = entry.split(':');
-						if (!key || rest.length === 0) return null;
+						if (!key?.trim() || rest.length === 0) return null;
 						return { key: key.trim(), value: rest.join(':').trim() };
 					})
 					.filter((entry): entry is { key: string; value: string } => !!entry && entry.value.length > 0);
