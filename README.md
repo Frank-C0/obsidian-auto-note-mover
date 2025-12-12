@@ -31,12 +31,14 @@ You can trigger by command.
 ## Rules
 
 1. Set the destination folder.
-2. Set a tag or title that matches the note you want to move. **You can set either the tag or the title.**
-3. The rules are checked in order from the top. The notes will be moved to the folder with the **first matching rule.**
+2. Add one or more rules for that folder. A rule can include multiple tags, multiple frontmatter properties (key:value), and/or title patterns. **All values inside the same rule must match at the same time.**
+3. The rule groups are checked in order from the top. The note will be moved to the folder with the **first matching rule.**
 
-Tag: Be sure to add a **\#** at the beginning.
+Tag: Be sure to add a **\#** at the beginning. Separate multiple tags with a comma.
 
-Title: Tested by JavaScript regular expressions.
+Frontmatter: Use key:value pairs (for example `status: In Progress`) and separate multiple entries with a comma.
+
+Title: Tested by JavaScript regular expressions. Multiple patterns are ANDed.
 
 ## Notice
 

@@ -7,8 +7,8 @@ export default class AutoNoteMover extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		const folderTagPattern = this.settings.folder_tag_pattern;
-		const excludedFolder = this.settings.excluded_folder;
+		const folderTagPattern = this.settings.folder_tag_pattern ?? [];
+		const excludedFolder = this.settings.excluded_folder ?? [];
 
 		const fileCheck = (file: TAbstractFile, oldPath?: string, caller?: string) => {
 			if (this.settings.trigger_auto_manual !== 'Automatic' && caller !== 'cmd') {
@@ -46,45 +46,77 @@ export default class AutoNoteMover extends Plugin {
 
 			const fileName = file.basename;
 			const fileFullName = file.basename + '.' + file.extension;
-			const settingsLength = folderTagPattern.length;
-			const cacheTag = getAllTags(fileCache);
+			const cacheTag = getAllTags(fileCache) ?? [];
 
-			// checker
-			for (let i = 0; i < settingsLength; i++) {
-				const settingFolder = folderTagPattern[i].folder;
-				const settingTag = folderTagPattern[i].tag;
-				const settingFrontmatterProperty = folderTagPattern[i].frontmatterProperty;
-				const settingPattern = folderTagPattern[i].pattern;
-				// Tag check
-				if (!settingPattern && !settingFrontmatterProperty) {
+			const matchesTags = (ruleTags: string[]) => {
+				if (!ruleTags || ruleTags.length === 0) return true;
+				if (cacheTag.length === 0) return false;
+				return ruleTags.every((ruleTag) => {
+					if (!ruleTag) return false;
 					if (!this.settings.use_regex_to_check_for_tags) {
-						if (cacheTag.find((e) => e === settingTag)) {
-							fileMove(this.app, settingFolder, fileFullName, file);
-							break;
-						}
-					} else if (this.settings.use_regex_to_check_for_tags) {
-						const regex = new RegExp(settingTag);
-						if (cacheTag.find((e) => regex.test(e))) {
-							fileMove(this.app, settingFolder, fileFullName, file);
-							break;
-						}
+						return cacheTag.some((tag) => tag === ruleTag);
 					}
-					// Title check
-				} else if (!settingTag && !settingFrontmatterProperty) {
-					const regex = new RegExp(settingPattern);
-					const isMatch = regex.test(fileName);
+					try {
+						const regex = new RegExp(ruleTag);
+						return cacheTag.some((tag) => regex.test(tag));
+					} catch (error) {
+						console.error(`[Auto Note Mover] Invalid tag regex "${ruleTag}".`, error);
+						return false;
+					}
+				});
+			};
+
+			const matchesFrontmatterProperties = (frontmatterProperties: string[]) => {
+				if (!frontmatterProperties || frontmatterProperties.length === 0) return true;
+				if (!fileCache || !fileCache.frontmatter) return false;
+				return frontmatterProperties.every((property) => {
+					if (!property || !property.includes(':')) return false;
+					const propertyParts = property.split(':');
+					const propertyKey = propertyParts[0].trim();
+					const propertyValue = propertyParts.slice(1).join(':').trim();
+					if (!propertyKey || !propertyValue) return false;
+					const fm = parseFrontMatterStringArray(fileCache.frontmatter, propertyKey);
+					return fm ? fm.includes(propertyValue) : false;
+				});
+			};
+
+			const matchesPatterns = (patterns: string[]) => {
+				if (!patterns || patterns.length === 0) return true;
+				return patterns.every((pattern) => {
+					if (!pattern) return false;
+					try {
+						const regex = new RegExp(pattern);
+						return regex.test(fileName);
+					} catch (error) {
+						console.error(`[Auto Note Mover] Invalid title regex "${pattern}".`, error);
+						return false;
+					}
+				});
+			};
+
+			for (let i = 0; i < folderTagPattern.length; i++) {
+				const settingFolder = folderTagPattern[i].folder;
+				const rules = folderTagPattern[i].rules ?? [];
+
+				for (let j = 0; j < rules.length; j++) {
+					const rule = rules[j];
+					const hasRule =
+						(rule.tags && rule.tags.length > 0) ||
+						(rule.frontmatterProperties && rule.frontmatterProperties.length > 0) ||
+						(rule.patterns && rule.patterns.length > 0);
+
+					if (!hasRule) {
+						continue;
+					}
+
+					const isMatch =
+						matchesTags(rule.tags) &&
+						matchesFrontmatterProperties(rule.frontmatterProperties) &&
+						matchesPatterns(rule.patterns);
+
 					if (isMatch) {
 						fileMove(this.app, settingFolder, fileFullName, file);
-						break;
-					}
-				} else if (!settingPattern && !settingTag) {
-					const property = settingFrontmatterProperty.split(":")
-					const propertyKey = property[0].trim()
-					const propertyValue = property[1].trim()
-					const fm = parseFrontMatterStringArray(fileCache.frontmatter, propertyKey);
-					if (fm && fm.length > 0 && fm.includes(propertyValue)) {
-						fileMove(this.app, settingFolder, fileFullName, file);
-						break;
+						return;
 					}
 				}
 			}
@@ -154,7 +186,59 @@ export default class AutoNoteMover extends Plugin {
 	onunload() {}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const loaded = await this.loadData();
+		const mergedSettings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+
+		const normalizeRuleArray = (rules: any[]) => {
+			if (!rules || rules.length === 0) {
+				return [{ tags: [], frontmatterProperties: [], patterns: [] }];
+			}
+			return rules.map((rule) => {
+				const tags = rule?.tags ?? (rule?.tag ? [rule.tag] : []);
+				const frontmatterProperties =
+					rule?.frontmatterProperties ?? (rule?.frontmatterProperty ? [rule.frontmatterProperty] : []);
+				const patterns = rule?.patterns ?? (rule?.pattern ? [rule.pattern] : []);
+
+				return {
+					tags: (tags as string[])
+						.map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+						.filter((tag) => tag.length > 0),
+					frontmatterProperties: (frontmatterProperties as string[])
+						.map((property) => (typeof property === 'string' ? property.trim() : ''))
+						.filter((property) => property.length > 0),
+					patterns: (patterns as string[])
+						.map((pattern) => (typeof pattern === 'string' ? pattern.trim() : ''))
+						.filter((pattern) => pattern.length > 0),
+				};
+			});
+		};
+
+		this.settings = {
+			...mergedSettings,
+			folder_tag_pattern:
+				mergedSettings.folder_tag_pattern?.map((entry: any) => {
+					if (entry?.rules) {
+						return {
+							folder: entry.folder ?? '',
+							rules: normalizeRuleArray(entry.rules),
+						};
+					}
+
+					return {
+						folder: entry.folder ?? '',
+						rules: normalizeRuleArray([
+							{
+								tag: entry.tag,
+								frontmatterProperty: entry.frontmatterProperty,
+								pattern: entry.pattern,
+								tags: entry.tags,
+								frontmatterProperties: entry.frontmatterProperties,
+								patterns: entry.patterns,
+							},
+						]),
+					};
+				}) ?? DEFAULT_SETTINGS.folder_tag_pattern,
+		};
 	}
 
 	async saveSettings() {
