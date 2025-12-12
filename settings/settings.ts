@@ -135,7 +135,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 			descEl.createEl('br'),
 			'2. Set tag(s), frontmatter property key:value pair(s), or title regex that matches the note you want to move. ',
 			descEl.createEl('strong', {
-				text: 'Separate multiple tags or frontmatter properties with commas. All configured conditions must match. ',
+				text: 'Separate multiple tags or frontmatter properties with commas. All configured conditions must match, and tags, frontmatter, and title can be combined in a single rule. ',
 			}),
 			descEl.createEl('br'),
 			'3. The rules are checked in order from the top. The notes will be moved to the folder with the ',
@@ -180,14 +180,6 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 			});
 
 		this.plugin.settings.folder_tag_pattern.forEach((folder_tag_pattern, index) => {
-			const settings = this.plugin.settings.folder_tag_pattern;
-			const settingTag = settings.map((e) => e['tag']);
-			const settingFrontmatterProperty = settings.map((e) => e['frontmatterProperty']);
-			const settingPattern = settings.map((e) => e['pattern']);
-			const checkArr = (arr: string[], val: string) => {
-				return arr.some((arrVal) => val === arrVal);
-			};
-
 			const s = new Setting(this.containerEl)
 				.addSearch((cb) => {
 					new FolderSuggest(this.app, cb.inputEl);
@@ -204,14 +196,6 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 					cb.setPlaceholder('Tag (comma separated)')
 						.setValue(folder_tag_pattern.tag)
 						.onChange(async (newTag) => {
-							if (this.plugin.settings.folder_tag_pattern[index].pattern) {
-								this.display();
-								return new Notice(`You can set either the tag or the title.`);
-							}
-							if (newTag && checkArr(settingTag, newTag)) {
-								new Notice('This tag is already used.');
-								return;
-							}
 							if (!this.plugin.settings.use_regex_to_check_for_tags) {
 								this.plugin.settings.folder_tag_pattern[index].tag = newTag.trim();
 							} else if (this.plugin.settings.use_regex_to_check_for_tags) {
@@ -225,11 +209,6 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 					cb.setPlaceholder('Frontmatter property (key:value, comma separated)')
 						.setValue(folder_tag_pattern.frontmatterProperty)
 						.onChange(async (newFrontmatterProperty) => {
-							if (newFrontmatterProperty && checkArr(settingFrontmatterProperty, newFrontmatterProperty)) {
-								new Notice('This frontmatter property is already used.');
-								return;
-							}
-
 							this.plugin.settings.folder_tag_pattern[index].frontmatterProperty = newFrontmatterProperty;
 							await this.plugin.saveSettings();
 						});
@@ -239,16 +218,6 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 					cb.setPlaceholder('Title by regex')
 						.setValue(folder_tag_pattern.pattern)
 						.onChange(async (newPattern) => {
-							if (this.plugin.settings.folder_tag_pattern[index].tag) {
-								this.display();
-								return new Notice(`You can set either the tag or the title.`);
-							}
-
-							if (newPattern && checkArr(settingPattern, newPattern)) {
-								new Notice('This pattern is already used.');
-								return;
-							}
-
 							this.plugin.settings.folder_tag_pattern[index].pattern = newPattern;
 							await this.plugin.saveSettings();
 						});
