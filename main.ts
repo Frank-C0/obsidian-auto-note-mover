@@ -1,6 +1,20 @@
 import { MarkdownView, Plugin, TFile, getAllTags, Notice, parseFrontMatterStringArray, TAbstractFile, normalizePath } from 'obsidian';
-import { DEFAULT_SETTINGS, AutoNoteMoverSettings, AutoNoteMoverSettingTab } from 'settings/settings';
+import { DEFAULT_SETTINGS, AutoNoteMoverSettings, AutoNoteMoverSettingTab, FolderRule, FolderTagPattern } from 'settings/settings';
 import { fileMove, getTriggerIndicator, isFmDisable } from 'utils/Utils';
+
+type LegacyRule = {
+	tag?: string;
+	frontmatterProperty?: string;
+	pattern?: string;
+	tags?: string[];
+	frontmatterProperties?: string[];
+	patterns?: string[];
+};
+
+type LegacyFolderRuleSet = {
+	folder?: string;
+	rules?: Array<FolderRule | LegacyRule>;
+} & LegacyRule;
 
 export default class AutoNoteMover extends Plugin {
 	settings: AutoNoteMoverSettings;
@@ -71,9 +85,9 @@ export default class AutoNoteMover extends Plugin {
 				if (!fileCache || !fileCache.frontmatter) return false;
 				return frontmatterProperties.every((property) => {
 					if (!property || !property.includes(':')) return false;
-					const propertyParts = property.split(':');
-					const propertyKey = propertyParts[0].trim();
-					const propertyValue = propertyParts.slice(1).join(':').trim();
+					const delimiterIndex = property.indexOf(':');
+					const propertyKey = property.slice(0, delimiterIndex).trim();
+					const propertyValue = property.slice(delimiterIndex + 1).trim();
 					if (!propertyKey || !propertyValue) return false;
 					const fm = parseFrontMatterStringArray(fileCache.frontmatter, propertyKey);
 					return fm ? fm.includes(propertyValue) : false;
@@ -189,26 +203,45 @@ export default class AutoNoteMover extends Plugin {
 		const loaded = await this.loadData();
 		const mergedSettings = Object.assign({}, DEFAULT_SETTINGS, loaded);
 
-		const normalizeRuleArray = (rules: any[]) => {
+		const normalizeRuleArray = (rules: Array<FolderRule | LegacyRule> | undefined) => {
 			if (!rules || rules.length === 0) {
 				return [{ tags: [], frontmatterProperties: [], patterns: [] }];
 			}
 			return rules.map((rule) => {
-				const tags = rule?.tags ?? (rule?.tag ? [rule.tag] : []);
-				const frontmatterProperties =
-					rule?.frontmatterProperties ?? (rule?.frontmatterProperty ? [rule.frontmatterProperty] : []);
-				const patterns = rule?.patterns ?? (rule?.pattern ? [rule.pattern] : []);
+				const cleanValues = (values: string[]) =>
+					values
+						.map((value) => (typeof value === 'string' ? value.trim() : ''))
+						.filter((value) => value.length > 0);
+
+				let tags: string[] = [];
+				if ('tags' in rule && Array.isArray(rule.tags)) {
+					tags = rule.tags;
+				} else if ('tag' in rule && typeof rule.tag === 'string' && rule.tag.trim().length > 0) {
+					tags = [rule.tag];
+				}
+
+				let frontmatterProperties: string[] = [];
+				if ('frontmatterProperties' in rule && Array.isArray(rule.frontmatterProperties)) {
+					frontmatterProperties = rule.frontmatterProperties;
+				} else if (
+					'frontmatterProperty' in rule &&
+					typeof rule.frontmatterProperty === 'string' &&
+					rule.frontmatterProperty.trim().length > 0
+				) {
+					frontmatterProperties = [rule.frontmatterProperty];
+				}
+
+				let patterns: string[] = [];
+				if ('patterns' in rule && Array.isArray(rule.patterns)) {
+					patterns = rule.patterns;
+				} else if ('pattern' in rule && typeof rule.pattern === 'string' && rule.pattern.trim().length > 0) {
+					patterns = [rule.pattern];
+				}
 
 				return {
-					tags: (tags as string[])
-						.map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
-						.filter((tag) => tag.length > 0),
-					frontmatterProperties: (frontmatterProperties as string[])
-						.map((property) => (typeof property === 'string' ? property.trim() : ''))
-						.filter((property) => property.length > 0),
-					patterns: (patterns as string[])
-						.map((pattern) => (typeof pattern === 'string' ? pattern.trim() : ''))
-						.filter((pattern) => pattern.length > 0),
+					tags: cleanValues(tags as string[]),
+					frontmatterProperties: cleanValues(frontmatterProperties as string[]),
+					patterns: cleanValues(patterns as string[]),
 				};
 			});
 		};
@@ -216,7 +249,7 @@ export default class AutoNoteMover extends Plugin {
 		this.settings = {
 			...mergedSettings,
 			folder_tag_pattern:
-				mergedSettings.folder_tag_pattern?.map((entry: any) => {
+				mergedSettings.folder_tag_pattern?.map((entry: LegacyFolderRuleSet | FolderTagPattern) => {
 					if (entry?.rules) {
 						return {
 							folder: entry.folder ?? '',
@@ -224,16 +257,17 @@ export default class AutoNoteMover extends Plugin {
 						};
 					}
 
+					const legacyEntry = entry as LegacyFolderRuleSet;
 					return {
-						folder: entry.folder ?? '',
+						folder: legacyEntry.folder ?? '',
 						rules: normalizeRuleArray([
 							{
-								tag: entry.tag,
-								frontmatterProperty: entry.frontmatterProperty,
-								pattern: entry.pattern,
-								tags: entry.tags,
-								frontmatterProperties: entry.frontmatterProperties,
-								patterns: entry.patterns,
+								tag: legacyEntry.tag,
+								frontmatterProperty: legacyEntry.frontmatterProperty,
+								pattern: legacyEntry.pattern,
+								tags: legacyEntry.tags,
+								frontmatterProperties: legacyEntry.frontmatterProperties,
+								patterns: legacyEntry.patterns,
 							},
 						]),
 					};

@@ -182,10 +182,6 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 		const emptyRule = (): FolderRule => ({ tags: [], frontmatterProperties: [], patterns: [] });
 
 		this.plugin.settings.folder_tag_pattern.forEach((folder_tag_pattern, index) => {
-			if (!folder_tag_pattern.rules || folder_tag_pattern.rules.length === 0) {
-				this.plugin.settings.folder_tag_pattern[index].rules = [emptyRule()];
-			}
-
 			const groupSetting = new Setting(this.containerEl)
 				.addSearch((cb) => {
 					new FolderSuggest(this.app, cb.inputEl);
@@ -241,7 +237,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 				ruleSetting
 					.addText((cb) => {
 						cb.setPlaceholder('Tags (comma separated)')
-							.setValue(rule.tags?.join(', ') ?? '')
+							.setValue(rule.tags.join(', '))
 							.onChange(async (newTags) => {
 								this.plugin.settings.folder_tag_pattern[index].rules[ruleIndex].tags = newTags
 									.split(',')
@@ -252,7 +248,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 					})
 					.addText((cb) => {
 						cb.setPlaceholder('Frontmatter properties key:value (comma separated)')
-							.setValue(rule.frontmatterProperties?.join(', ') ?? '')
+							.setValue(rule.frontmatterProperties.join(', '))
 							.onChange(async (newProps) => {
 								this.plugin.settings.folder_tag_pattern[index].rules[ruleIndex].frontmatterProperties = newProps
 									.split(',')
@@ -263,7 +259,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 					})
 					.addText((cb) => {
 						cb.setPlaceholder('Title by regex (comma separated)')
-							.setValue(rule.patterns?.join(', ') ?? '')
+							.setValue(rule.patterns.join(', '))
 							.onChange(async (newPatterns) => {
 								this.plugin.settings.folder_tag_pattern[index].rules[ruleIndex].patterns = newPatterns
 									.split(',')
