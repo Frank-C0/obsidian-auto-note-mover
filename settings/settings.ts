@@ -133,8 +133,10 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 		ruleDesc.append(
 			'1. Set the destination folder.',
 			descEl.createEl('br'),
-			'2. Set a tag, frontmatter property key:value or title that matches the note you want to move. ',
-			descEl.createEl('strong', { text: 'You can set either the tag, frontmatter property key:value or the title. ' }),
+			'2. Set tag(s), frontmatter property key:value pair(s), or title regex that matches the note you want to move. ',
+			descEl.createEl('strong', {
+				text: 'Separate multiple tags or frontmatter properties with commas. All configured conditions must match. ',
+			}),
 			descEl.createEl('br'),
 			'3. The rules are checked in order from the top. The notes will be moved to the folder with the ',
 			descEl.createEl('strong', { text: 'first matching rule.' }),
@@ -199,7 +201,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 
 				.addSearch((cb) => {
 					new TagSuggest(this.app, cb.inputEl);
-					cb.setPlaceholder('Tag')
+					cb.setPlaceholder('Tag (comma separated)')
 						.setValue(folder_tag_pattern.tag)
 						.onChange(async (newTag) => {
 							if (this.plugin.settings.folder_tag_pattern[index].pattern) {
@@ -220,7 +222,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 				})
 
 				.addSearch((cb) => {
-					cb.setPlaceholder('Frontmatter property')
+					cb.setPlaceholder('Frontmatter property (key:value, comma separated)')
 						.setValue(folder_tag_pattern.frontmatterProperty)
 						.onChange(async (newFrontmatterProperty) => {
 							if (newFrontmatterProperty && checkArr(settingFrontmatterProperty, newFrontmatterProperty)) {
