@@ -31,7 +31,7 @@ You can trigger by command.
 ## Rules
 
 1. Set the destination folder.
-2. Set a tag or title that matches the note you want to move. **You can set either the tag or the title.**
+2. Set tag(s), frontmatter property key:value pair(s), or title regex that matches the note you want to move. Separate multiple tags or frontmatter properties with commas. You can combine tags, frontmatter, and title in the same rule; all specified conditions must match for the rule to apply.
 3. The rules are checked in order from the top. The notes will be moved to the folder with the **first matching rule.**
 
 Tag: Be sure to add a **\#** at the beginning.

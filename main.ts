@@ -47,45 +47,56 @@ export default class AutoNoteMover extends Plugin {
 			const fileName = file.basename;
 			const fileFullName = file.basename + '.' + file.extension;
 			const settingsLength = folderTagPattern.length;
-			const cacheTag = getAllTags(fileCache);
+			const cacheTag = getAllTags(fileCache) || [];
+			const parseList = (value?: string) =>
+				(value || '')
+					.split(',')
+					.map((item) => item.trim())
+					.filter((item) => item.length > 0);
+			const parseFrontmatterList = (value?: string) =>
+				parseList(value)
+					.map((entry) => {
+						const [key, ...rest] = entry.split(':');
+						if (!key?.trim() || rest.length === 0) return null;
+						return { key: key.trim(), value: rest.join(':').trim() };
+					})
+					.filter((entry): entry is { key: string; value: string } => !!entry && entry.value.length > 0);
 
 			// checker
 			for (let i = 0; i < settingsLength; i++) {
 				const settingFolder = folderTagPattern[i].folder;
-				const settingTag = folderTagPattern[i].tag;
-				const settingFrontmatterProperty = folderTagPattern[i].frontmatterProperty;
+				const tags = parseList(folderTagPattern[i].tag);
+				const frontmatterProperties = parseFrontmatterList(folderTagPattern[i].frontmatterProperty);
 				const settingPattern = folderTagPattern[i].pattern;
-				// Tag check
-				if (!settingPattern && !settingFrontmatterProperty) {
-					if (!this.settings.use_regex_to_check_for_tags) {
-						if (cacheTag.find((e) => e === settingTag)) {
-							fileMove(this.app, settingFolder, fileFullName, file);
-							break;
+
+				const hasTags = tags.length > 0;
+				const hasPattern = !!settingPattern;
+				const hasFrontmatter = frontmatterProperties.length > 0;
+
+				if (!hasTags && !hasPattern && !hasFrontmatter) continue;
+
+				const tagsMatch =
+					!hasTags ||
+					tags.every((tag) => {
+						if (!this.settings.use_regex_to_check_for_tags) {
+							return cacheTag.some((cache) => cache === tag);
 						}
-					} else if (this.settings.use_regex_to_check_for_tags) {
-						const regex = new RegExp(settingTag);
-						if (cacheTag.find((e) => regex.test(e))) {
-							fileMove(this.app, settingFolder, fileFullName, file);
-							break;
-						}
-					}
-					// Title check
-				} else if (!settingTag && !settingFrontmatterProperty) {
-					const regex = new RegExp(settingPattern);
-					const isMatch = regex.test(fileName);
-					if (isMatch) {
-						fileMove(this.app, settingFolder, fileFullName, file);
-						break;
-					}
-				} else if (!settingPattern && !settingTag) {
-					const property = settingFrontmatterProperty.split(":")
-					const propertyKey = property[0].trim()
-					const propertyValue = property[1].trim()
-					const fm = parseFrontMatterStringArray(fileCache.frontmatter, propertyKey);
-					if (fm && fm.length > 0 && fm.includes(propertyValue)) {
-						fileMove(this.app, settingFolder, fileFullName, file);
-						break;
-					}
+						const regex = new RegExp(tag);
+						return cacheTag.some((cache) => regex.test(cache));
+					});
+
+				const patternMatch = !hasPattern || new RegExp(settingPattern).test(fileName);
+
+				const frontmatterMatch =
+					!hasFrontmatter ||
+					frontmatterProperties.every(({ key, value }) => {
+						const fm = parseFrontMatterStringArray(fileCache?.frontmatter, key);
+						return fm && fm.length > 0 && fm.includes(value);
+					});
+
+				if (tagsMatch && patternMatch && frontmatterMatch) {
+					fileMove(this.app, settingFolder, fileFullName, file);
+					break;
 				}
 			}
 		};
